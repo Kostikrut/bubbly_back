@@ -3,7 +3,6 @@ import Message from "../models/messageModel.js";
 import cloudinary from "../lib/cloudinary.js";
 import AppError from "../utils/appError.js";
 import catchAsync from "../utils/catchAsync.js";
-import { stat } from "fs";
 
 const updateUser = catchAsync(async (req, res, next) => {
   const { name, nickname, email } = req.body;
