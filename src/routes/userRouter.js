@@ -15,6 +15,7 @@ import {
   blockUser,
   unblockUser,
   updateOnlineStatus,
+  getUnreadMessagesCount,
 } from "../controllers/userController.js";
 
 const router = express.Router();
@@ -26,6 +27,7 @@ router.get("/allUsers", protect, getAllUsers);
 router.get("/blockedUsers", protect, getBlockedUsers);
 router.get("/searchUsers", protect, searchUsers);
 router.get("/contacts", protect, getContacts);
+router.get("/unreadCount", protect, getUnreadMessagesCount);
 router.put("/contacts/:id", protect, addToContacts);
 router.delete("/contacts/:id", protect, removeFromContacts);
 router.put("/block/:id", protect, blockUser);

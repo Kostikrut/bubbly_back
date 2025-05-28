@@ -1,7 +1,9 @@
 import User from "../models/userModel.js";
+import Message from "../models/messageModel.js";
 import cloudinary from "../lib/cloudinary.js";
 import AppError from "../utils/appError.js";
 import catchAsync from "../utils/catchAsync.js";
+import { stat } from "fs";
 
 const updateUser = catchAsync(async (req, res, next) => {
   const { name, nickname, email } = req.body;
@@ -174,18 +176,77 @@ const searchUsers = catchAsync(async (req, res, next) => {
 });
 
 const getContacts = catchAsync(async (req, res, next) => {
-  const { contacts } = req.user;
+  const { contacts, _id: currentUserId } = req.user;
 
-  let users = await User.find({ _id: { $in: contacts } }).select(
-    "-isActive -password -__v -createdAt -updatedAt"
+  const unreadFromNewUsers = await Message.aggregate([
+    {
+      $match: {
+        receiverId: currentUserId,
+        isRead: false,
+        senderId: { $nin: contacts },
+      },
+    },
+    {
+      $group: {
+        _id: "$senderId",
+      },
+    },
+  ]);
+
+  const newSenderIds = unreadFromNewUsers.map((user) => user._id.toString());
+
+  // if there are new senders, add them to the contacts
+  if (newSenderIds.length > 0) {
+    await User.findByIdAndUpdate(currentUserId, {
+      $addToSet: { contacts: { $each: newSenderIds } },
+    });
+  }
+
+  const updatedContacts = [
+    ...contacts.map((id) => id.toString()),
+    ...newSenderIds,
+  ];
+
+  const updatedContactUsers = await User.find({
+    _id: { $in: updatedContacts },
+  }).select(
+    "-isActive -password -__v -createdAt -updatedAt -passwordChangedAt -passwordResetExpires -passwordResetToken -contacts"
   );
-
-  if (!users) users = [];
 
   res.status(200).json({
     status: "success",
     data: {
-      users,
+      users: updatedContactUsers,
+    },
+  });
+});
+
+const getUnreadMessagesCount = catchAsync(async (req, res, next) => {
+  const { users } = req.query;
+
+  if (!users || !Array.isArray(users) || users.length === 0) {
+    return next(new AppError("Please provide an array of user ids", 400));
+  }
+
+  const unreadCounts = await Message.aggregate([
+    {
+      $match: {
+        receiverId: req.user._id,
+        isRead: false,
+      },
+    },
+    {
+      $group: {
+        _id: "$senderId",
+        count: { $sum: 1 },
+      },
+    },
+  ]);
+
+  res.status(200).json({
+    status: "success",
+    data: {
+      counts: unreadCounts,
     },
   });
 });
@@ -333,4 +394,5 @@ export {
   unblockUser,
   getBlockedUsers,
   updateOnlineStatus,
+  getUnreadMessagesCount,
 };
